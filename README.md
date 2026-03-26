@@ -2,17 +2,35 @@
 
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue) ![License: MIT-0](https://img.shields.io/badge/license-MIT--0-green) ![Platform: Amazon Ads](https://img.shields.io/badge/platform-Amazon%20Ads-orange)
 
-Automatically tune your Amazon Sponsored Products and Sponsored Brands placement bid modifiers — Top of Search, Product Page, Rest of Search — based on actual ACOS performance data. Set your target ACOS range once; the tool does the math and shows you exactly what to change before anything touches your account.
+An open-source tool that tunes Amazon Sponsored Products and Sponsored Brands placement bid modifiers using actual performance data — and **learns your preferences over time**.
+
+Every recommendation is reviewable in a browser UI before anything touches your account. You can override any value, skip rows, add notes — and those decisions are remembered. The more you use it, the more it reflects how *you* manage the account, not just what the formula suggests.
 
 ---
 
-## What does it actually do?
+## The feedback loop: how it learns
 
-Amazon lets you adjust how aggressively you bid on different ad placements (e.g., bid 50% *more* on Top of Search, or 20% *less* on Product Pages). Most advertisers set these once and forget them.
+Most optimizers are fire-and-forget. This one isn't.
 
-This tool pulls your placement performance data for a date range you choose, compares each placement's ACOS to the target range you define, and recommends modifier adjustments — nudging each placement toward your goal proportionally. You review the changes in a browser UI before anything is applied.
+After each run, you see a table of recommended changes. In the **New Mod% column, every value is editable** — type your own number if you disagree with the suggestion. Add a note explaining why. Skip rows you want to leave alone. Then save.
 
-**Example:** Your Top of Search ACOS is 42% and your target is 25–30%. The tool calculates a downward adjustment to your modifier and shows you the before/after. You click Apply when ready.
+Those decisions are written to `output/overrides.json`. The **next time you run the optimizer**, your overrides come back pre-loaded. Your skips stay skipped. Your notes stay visible. If the formula suggests a change you've overridden before, you'll see your previous value, not the raw recommendation.
+
+Over weeks of use, the review page becomes a record of your judgment for that account — which placements you're aggressive on, which ones you're cautious about, which campaigns you never touch. That context survives sessions, survives re-runs, and survives restarting your computer.
+
+**This is the actual workflow:**
+
+1. Run → review → override where needed → save → apply
+2. Next week: run again → your previous notes and overrides are already there
+3. The algorithm handles the math; you handle the strategy
+
+---
+
+## What does it do?
+
+Amazon lets you adjust how aggressively you bid on different ad placements — Top of Search, Product Page, Rest of Search. Most advertisers set these once and forget them.
+
+This tool pulls your placement performance data for a date range you choose, compares each placement's ACOS to the target range you define, and computes modifier adjustments. You review everything in an editable browser UI before any change reaches Amazon.
 
 ---
 
@@ -21,37 +39,37 @@ This tool pulls your placement performance data for a date range you choose, com
 For each campaign × placement combination:
 
 1. **Compute the gap** — how far is the current ACOS from the midpoint of your target range?
-2. **Apply dampening** — scale the adjustment to avoid overcorrecting (default: 50% of the raw signal). Large swings are split across runs.
-3. **Clamp to limits** — modifiers are bounded between `min_modifier_pct` and `max_modifier_pct` in your config.
-4. **Zero-out rule** — if a placement is significantly underperforming (ACOS > 2× target), the modifier is set to 0% (no uplift).
-5. **Skip low-data placements** — if a placement has fewer than `min_clicks` clicks, no recommendation is made.
+2. **Apply dampening** — scale the adjustment to avoid overcorrecting (default: 50%). Large swings are split across runs.
+3. **Clamp to limits** — modifiers stay within `min_modifier_pct` and `max_modifier_pct`.
+4. **Zero-out rule** — if ACOS is way above target and the modifier is already low, set it to 0%.
+5. **Skip low-data** — placements with fewer than `min_clicks` clicks get no recommendation.
 
 ### Worked example
 
-| Setting | Value |
+| | Value |
 |---|---|
-| Target ACOS (NB) | 25–30% (midpoint: 27.5%) |
+| Target ACOS | 25–30% (midpoint 27.5%) |
 | Current Top of Search ACOS | 38% |
-| Current Top of Search modifier | +60% |
+| Current modifier | +60% |
 | Dampening | 50% |
 
-Gap = 38% − 27.5% = **10.5 percentage points** over target  
-Raw adjustment = −10.5pp × 0.5 dampening = **−5.25pp**  
-New modifier = 60% − 5.25% = **~55%** (rounded)
+Gap = 38% − 27.5% = 10.5pp over target  
+Adjustment = −10.5pp × 0.5 = −5.25pp  
+New modifier = **55%** (rounded)
 
-The tool shows: `+60% → +55% (−5pp)` — a controlled step in the right direction.
+The UI shows: `+60% → +55% (−5pp)` — a controlled step. You can accept it, type 50% instead, or skip the row entirely.
 
 ---
 
 ## Prerequisites
 
 - **Python 3.9 or newer** — [download here](https://www.python.org/downloads/)
-- **Amazon Ads API access** — you need a self-service API application approved by Amazon
+- **Amazon Ads API credentials** — self-service application from Amazon
   - Go to [advertising.amazon.com/API/access](https://advertising.amazon.com/API/access)
-  - Create an application, note your **Client ID** and **Client Secret**
-  - Your account must have at least one Sponsored Products or Sponsored Brands profile
+  - Create an application — note your **Client ID** and **Client Secret**
+  - Must have at least one Sponsored Products or Sponsored Brands profile
 
-> **No coding experience required** for setup and daily use — just follow the steps below.
+> **No coding experience required** for setup and daily use.
 
 ---
 
@@ -61,23 +79,49 @@ The tool shows: `+60% → +55% (−5pp)` — a controlled step in the right dire
 # 1. Install dependencies (one-time)
 pip install -r requirements.txt
 
-# 2. Copy credential template and fill in your Client ID + Secret
+# 2. Copy credential template and fill in Client ID + Secret
 cp .env.example .env
-# Open .env in any text editor and set ADS_CLIENT_ID and ADS_CLIENT_SECRET
+# Edit .env with any text editor
 
-# 3. Authenticate (opens a browser window — log in with your Amazon Ads account)
+# 3. Authenticate — opens a browser, log in with your Amazon Ads account
 python run.py auth
 
 # 4. Find your profile ID
 python run.py list-profiles
 
-# 5. Copy the config template and fill in your profile ID + ACOS targets
+# 5. Configure your account
 cp config/account.yaml.example config/account.yaml
-# Open config/account.yaml and set profile_id, name, and ACOS target ranges
+# Edit config/account.yaml — set profile_id and your ACOS targets
 
-# 6. Run the optimizer (last 30 days, opens browser review UI)
+# 6. Run
 python run.py start --days 30
 ```
+
+---
+
+## The Review UI
+
+When a run completes, your browser opens to `http://localhost:8501`.
+
+| Column | What it is |
+|---|---|
+| ✕ | Skip checkbox — checked rows are excluded from apply |
+| Campaign | Campaign name |
+| Placement | Top of Search, Product Page, Rest of Search, etc. |
+| Type | SP (Sponsored Products) or SB (Sponsored Brands) |
+| Seg | NB (non-branded) or Brand |
+| Spend / Sales / Clicks | Performance data for the date range |
+| ACOS% | Current ACOS — red if above target, green if below |
+| Target | Your ACOS target range from config |
+| Cur Mod% | Current placement modifier on this campaign |
+| **New Mod% ✏** | **Recommended modifier — you can edit this** |
+| Note | Free-text field for your reasoning |
+
+**Two-step flow:**
+1. **Save Edits** — writes your overrides to `output/overrides.json`
+2. **Apply to Amazon** — pushes only the non-skipped rows to the Ads API
+
+Nothing reaches Amazon until you click Apply.
 
 ---
 
@@ -85,104 +129,113 @@ python run.py start --days 30
 
 | Command | What it does |
 |---|---|
-| `python run.py auth` | Opens a browser for Amazon OAuth login. Saves your refresh token to `.env`. Run once per account. |
-| `python run.py list-profiles` | Lists all Amazon Ads profiles your credentials can access, with IDs and names. |
-| `python run.py start` | Pulls placement data, computes recommendations, opens a browser review UI. |
-| `python run.py status` | Check if a run is currently in progress. |
+| `python run.py auth` | OAuth flow — opens browser, saves refresh token to `.env` |
+| `python run.py list-profiles` | Lists all accessible profile IDs with names |
+| `python run.py start` | Runs the optimizer, opens review UI |
+| `python run.py status` | Check if a run is in progress |
 
 ### `start` options
 
 | Flag | Default | Description |
 |---|---|---|
-| `--days 30` | 30 | How many days of data to pull |
-| `--start-date 2026-01-01` | — | Explicit start date (overrides `--days`) |
-| `--end-date 2026-01-31` | — | Explicit end date (use with `--start-date`) |
-| `--ad-type sp` | `both` | Which campaign types: `sp`, `sb`, or `both` |
-| `--dry-run` | off | Compute and print recommendations; don't open browser or apply anything |
-| `--no-browser` | off | Don't auto-open the browser UI |
-| `--show-skipped` | off | Include low-data placements in the terminal output |
+| `--days 30` | 30 | Lookback window |
+| `--start-date 2026-01-01` | — | Explicit start (overrides `--days`) |
+| `--end-date 2026-01-31` | — | Explicit end |
+| `--ad-type sp\|sb\|both` | `both` | Campaign types to optimize |
+| `--dry-run` | off | Compute only — no browser, no apply |
+| `--no-browser` | off | Don't auto-open browser |
+| `--show-skipped` | off | Show low-data placements in terminal output |
 
 ---
 
 ## Configuration reference (`config/account.yaml`)
 
-Copy `config/account.yaml.example` to `config/account.yaml` and fill in these values:
+Copy `config/account.yaml.example` → `config/account.yaml`.
 
 ```yaml
-name: "My Account"           # A human-readable label — shown in the UI header
-profile_id: "YOUR_PROFILE_ID_HERE"  # From `python run.py list-profiles`
+name: "My Account"               # Label shown in the review UI
+profile_id: "YOUR_PROFILE_ID"    # From `python run.py list-profiles`
 
-# Non-branded (NB) campaigns — typically higher ACOS tolerance
-nb_acos_low: 0.25            # Minimum acceptable ACOS for NB (e.g. 0.25 = 25%)
-nb_acos_high: 0.35           # Maximum acceptable ACOS for NB (e.g. 0.35 = 35%)
+# ACOS targets — the range you want each placement to land in
+nb_acos_low:   0.25   # Minimum acceptable ACOS for non-branded campaigns (25%)
+nb_acos_high:  0.35   # Maximum acceptable ACOS for non-branded campaigns (35%)
+brand_acos_low:  0.10 # Minimum for branded campaigns
+brand_acos_high: 0.20 # Maximum for branded campaigns
 
-# Branded campaigns — typically tighter ACOS target
-brand_acos_low: 0.10         # Minimum acceptable ACOS for branded
-brand_acos_high: 0.20        # Maximum acceptable ACOS for branded
+# Adjustment limits
+min_modifier_pct: -90   # Never go below this modifier
+max_modifier_pct: 900   # Never go above this (9× bid uplift)
+max_increase_pp:  20    # Max increase per run in percentage points
 
-# Placement modifier limits
-min_modifier_pct: -90        # Never go below this modifier (e.g. -90 = reduce bids by 90%)
-max_modifier_pct: 900        # Never go above this modifier (e.g. 900 = 9× bid uplift)
+# Data quality
+min_clicks: 10          # Skip placements with fewer clicks than this
 
-# Data quality threshold — placements with fewer clicks than this are skipped
-min_clicks: 10
-
-# Dampening — how aggressively to move each run (0.0–1.0)
-# 0.5 = move 50% of the way toward target; lower = more conservative
+# Dampening — 0.5 = move 50% of the way toward target per run
+# Lower = more conservative; higher = faster but riskier
 dampening: 0.5
+brand_dampening: 0.65
 
-# Flag threshold — modifiers at or above this % are highlighted in the UI for review
+# Flagging — modifiers at or above this % are highlighted amber
 flag_threshold_pct: 300
 
-# Campaign name patterns used to classify branded vs. non-branded
-# Any campaign matching these strings (case-insensitive) is treated as "brand"
+# Campaign name patterns for branded detection
+# Any campaign name containing these strings (case-insensitive) = branded
 brand_patterns:
   - "brand"
   - "branded"
+  # Add your brand name here, e.g. "acme"
 ```
 
-**How branded vs. non-branded detection works:** The tool checks each campaign name against `brand_patterns`. A match = branded campaign, uses `brand_acos_*` targets. Everything else uses `nb_acos_*`. Add your brand name to the list (e.g., `"acme"`) for more precise detection.
+**Branded vs. non-branded:** campaigns matching `brand_patterns` use `brand_acos_*` targets. Everything else uses `nb_acos_*`. Add your brand name to the list for accurate segmentation.
 
 ---
 
-## The Review UI
+## Overrides file (`output/overrides.json`)
 
-When a run completes, a browser page opens automatically at `http://localhost:8501`. From here you can:
+This file is the tool's memory. It stores your per-row decisions:
 
-- See every recommended change in a table: campaign, placement, current ACOS vs. target, old modifier → new modifier, delta
-- Check or uncheck individual rows before applying
-- Apply "safe" changes (within normal range) separately from ⚑ flagged ones (very high modifiers)
-- Flagged changes are highlighted in yellow — review these before applying
+```json
+{
+  "CAMPAIGN_ID|PLACEMENT": {
+    "modifier_pct": 45,
+    "skip": false,
+    "note": "keep this low — competitor in this slot"
+  }
+}
+```
 
-Nothing is written to Amazon until you click **Apply**.
+- Automatically loaded every time you open the review UI
+- Updated when you click "Save Edits"
+- Safe to commit to version control — it's your account's strategy record
+- Delete it to start fresh
 
 ---
 
 ## FAQ
 
 **Q: Do I need to be a developer to use this?**  
-No. If you can run commands in a terminal and edit a text file, you can use this. The setup steps are a one-time effort; after that it's `python run.py start`.
+No. Terminal + text editor is all you need. Setup is a one-time thing; after that it's `python run.py start`.
 
-**Q: Will this make changes automatically?**  
-Never without your approval. Every run shows you what would change in a browser UI. You click Apply when ready. There's also a `--dry-run` flag that never touches anything.
+**Q: Will it make changes without asking me?**  
+Never. Every change goes through the browser review UI. You click Apply. There's also `--dry-run` for zero-risk exploration.
+
+**Q: What's a "flagged" row?**  
+Any modifier above `flag_threshold_pct` (default 300%) is highlighted amber with a ⚠. High modifiers can spike spend. They're not excluded automatically — just surfaced for your attention.
 
 **Q: How often should I run it?**  
-Weekly is a good starting cadence. Daily is fine for high-spend accounts. The dampening setting prevents the optimizer from overcorrecting between runs.
+Weekly for most accounts. Daily for high-spend. The dampening setting prevents overcorrection between runs.
 
-**Q: What if a placement has very little data?**  
-It's skipped. The `min_clicks` setting (default: 10) ensures recommendations are only made for placements with enough signal. Skipped placements are shown in a collapsible section in the UI.
+**Q: What if I always override a certain campaign the same way?**  
+Skip it once and save — it'll stay skipped. Add a note so you remember why. Next run, it comes back pre-skipped with your note.
 
-**Q: What's a "flagged" change?**  
-Any modifier the tool wants to set above `flag_threshold_pct` (default: 300%) is flagged with a ⚑ and highlighted yellow. This is a safeguard — very high modifiers can significantly spike spend. They're excluded from the default apply action so you review them intentionally.
+**Q: Can I use this for multiple accounts?**  
+Yes — maintain separate `config/account.yaml` and `output/` directories per account, or use `--config` (coming in a future release).
 
-**Q: Does this work for both Sponsored Products and Sponsored Brands?**  
+**Q: Does it work for both SP and SB?**  
 Yes. Use `--ad-type sp`, `--ad-type sb`, or `--ad-type both` (default).
 
-**Q: What placements does it optimize?**  
-Top of Search, Product Page, and Rest of Search (and Home Page / Amazon Business if present on your account). Placements vary by ad type.
-
 **Q: Is my data sent anywhere?**  
-No. Everything runs locally on your machine. The tool talks directly to Amazon's Ads API using your credentials.
+No. Runs entirely on your machine, talks directly to Amazon's API.
 
 ---
 
@@ -191,17 +244,19 @@ No. Everything runs locally on your machine. The tool talks directly to Amazon's
 ```
 .
 ├── run.py                      # CLI entry point
-├── requirements.txt            # Python dependencies
-├── .env.example                # Credential template (copy to .env)
+├── requirements.txt
+├── .env.example                # Credential template → copy to .env
 ├── config/
-│   └── account.yaml.example   # Account config template (copy to account.yaml)
+│   └── account.yaml.example   # Account config template → copy to account.yaml
 ├── lib/
-│   ├── ads_api.py              # Amazon Ads API client (OAuth, reporting, campaign updates)
-│   ├── optimizer.py            # Placement formula logic
-│   ├── worker.py               # Orchestration pipeline
-│   ├── server.py               # Local review UI server
-│   └── html_report.py          # HTML diff page renderer
-└── output/                     # Run results saved here (auto-created)
+│   ├── ads_api.py              # Amazon Ads API: OAuth, reporting, campaign updates
+│   ├── optimizer.py            # Placement formula + recommendation builder
+│   ├── worker.py               # Pipeline: report request → poll → download → merge → recs
+│   ├── server.py               # Local review server (port 8501)
+│   └── html_report.py          # Editable diff UI renderer
+└── output/
+    ├── overrides.json          # Your saved edits and notes (the memory file)
+    └── recs-*.json             # Run outputs
 ```
 
 ---

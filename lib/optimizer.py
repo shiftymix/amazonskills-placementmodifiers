@@ -106,6 +106,10 @@ class Recommendation:
     skip:          bool = False
     skip_reason:   str  = ""
     flagged:       bool = False
+    # Performance data (passed through from PlacementPerf for UI display)
+    clicks:        int   = 0
+    spend:         float = 0.0
+    sales:         float = 0.0
 
     @property
     def acos_pct(self) -> str:
@@ -164,6 +168,8 @@ def build_recommendations(
         acos_low, acos_high = config.acos_target(p.campaign_name)
         target_acos = config.calc_target_acos(p.campaign_name)
 
+        perf_kwargs = dict(clicks=p.clicks, spend=p.spend, sales=p.sales)
+
         # Skip: not enough clicks
         if p.clicks < config.min_clicks:
             recs.append(Recommendation(
@@ -172,6 +178,7 @@ def build_recommendations(
                 cur_acos=p.acos, target_acos=target_acos,
                 cur_modifier=p.cur_modifier, new_modifier=p.cur_modifier,
                 delta_pp=0.0, skip=True, skip_reason=f"low_clicks ({p.clicks})",
+                **perf_kwargs,
             ))
             continue
 
@@ -183,6 +190,7 @@ def build_recommendations(
                 cur_acos=None, target_acos=target_acos,
                 cur_modifier=p.cur_modifier, new_modifier=p.cur_modifier,
                 delta_pp=0.0, skip=True, skip_reason="no_sales",
+                **perf_kwargs,
             ))
             continue
 
@@ -198,6 +206,7 @@ def build_recommendations(
                 cur_modifier=p.cur_modifier, new_modifier=0.0,
                 delta_pp=-p.cur_modifier,
                 flagged=p.cur_modifier >= config.flag_threshold_pct,
+                **perf_kwargs,
             ))
             continue
 
@@ -209,6 +218,7 @@ def build_recommendations(
                 cur_acos=cur_acos, target_acos=target_acos,
                 cur_modifier=p.cur_modifier, new_modifier=p.cur_modifier,
                 delta_pp=0.0, skip=True, skip_reason="in_range",
+                **perf_kwargs,
             ))
             continue
 
@@ -234,6 +244,7 @@ def build_recommendations(
             cur_acos=cur_acos, target_acos=target_acos,
             cur_modifier=p.cur_modifier, new_modifier=new_mod,
             delta_pp=delta, flagged=flagged,
+            **perf_kwargs,
         ))
 
     return recs
