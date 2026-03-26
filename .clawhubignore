@@ -1,0 +1,20 @@
+# Credentials and private config — never publish
+.env
+config/account.yaml
+
+# Output files — user-generated, not part of skill
+output/
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# OS junk
+.DS_Store
+Thumbs.db

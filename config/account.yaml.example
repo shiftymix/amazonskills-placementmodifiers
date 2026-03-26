@@ -1,0 +1,87 @@
+# Amazon Placement Optimizer — Account Configuration
+#
+# Copy this file to account.yaml and fill in your values.
+# account.yaml is gitignored — never commit it.
+#
+# Run `python run.py list-profiles` to find your profile_id.
+
+profile_id: "YOUR_PROFILE_ID_HERE"   # e.g. "1234567890123456"
+name: "My Brand"                      # human label for display only
+
+# ---------------------------------------------------------------------------
+# ACOS Targets
+# ---------------------------------------------------------------------------
+# Set as decimals: 0.25 = 25%, 0.10 = 10%
+#
+# Use a RANGE rather than a single point. Placements within range are left
+# alone. The formula calculates toward the MIDPOINT of the range.
+#
+# Example: nb_acos_low=0.20, nb_acos_high=0.28 → target = 24%
+# A placement at 22% ACOS is left alone (within range).
+# A placement at 35% ACOS gets its modifier reduced.
+# A placement at 15% ACOS gets its modifier increased.
+
+# Nonbrand campaigns
+nb_acos_low:  0.20    # lower bound — don't push modifiers up beyond this
+nb_acos_high: 0.28    # upper bound — start reducing modifiers above this
+
+# Brand campaigns
+brand_acos_low:  0.10
+brand_acos_high: 0.15
+
+# ---------------------------------------------------------------------------
+# Brand Detection
+# ---------------------------------------------------------------------------
+# Campaigns whose names contain any of these strings (case-insensitive)
+# are treated as "brand" and use the brand ACOS targets above.
+# All other campaigns use the nonbrand targets.
+
+brand_patterns:
+  - "Branded"
+  - "Brand"
+
+# ---------------------------------------------------------------------------
+# Adjustment Rules
+# ---------------------------------------------------------------------------
+
+# Minimum clicks required before a placement recommendation is made.
+# Placements with fewer clicks are skipped (not enough data).
+min_clicks: 20
+
+# Maximum percentage-point increase per run.
+# Reductions are uncapped (but floored at 0%).
+# Recommended: 15–25pp. Start conservative if you're new to the tool.
+max_increase_pp: 20
+
+# Dampening factor: how much of the full calculated delta to apply per run.
+# 0.50 = move 50% of the way to target each run.
+# Lower = more conservative, takes more runs to converge.
+# Higher = faster convergence, more volatile.
+dampening: 0.50
+
+# Brand modifier dampening (often more conservative — brand campaigns
+# have diminishing returns at high modifiers).
+brand_dampening: 0.65
+
+# Extra dampening when current modifier is already high.
+# Applies when cur modifier >= high_modifier_threshold.
+dampening_high_modifier: 0.80
+high_modifier_threshold: 20   # pp
+
+# ---------------------------------------------------------------------------
+# Zero-Out Rule
+# ---------------------------------------------------------------------------
+# If ACOS is very high AND the current modifier is small, set modifier to 0.
+# Rationale: the placement is overspending at base bid already — removing
+# the modifier reduces how aggressively it's bid until performance improves.
+
+zero_out_acos_threshold: 0.50   # trigger if ACOS > this (e.g. 50%)
+zero_out_max_modifier: 20       # only zero-out if cur modifier <= this pp
+
+# ---------------------------------------------------------------------------
+# Safety Rails
+# ---------------------------------------------------------------------------
+
+# Modifiers at or above this value require --include-flagged flag to apply.
+# Protects against accidentally doubling an already-high modifier.
+flag_threshold_pct: 50
