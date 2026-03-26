@@ -22,47 +22,58 @@
 
 ## Using with an AI agent (Claude, OpenClaw, etc.)
 
-This tool is designed for human-in-the-loop operation — the browser review step is intentional, not something to skip. That said, it works well with an AI agent handling the data pipeline while you stay in control of the apply decision.
+**Your agent can install and onboard you — you don't have to read any of this.**
 
-### How an agent uses this skill
+Point Claude Code, an OpenClaw agent, or any coding agent at `SKILL.md` in this repo and say:
 
-An agent that can read `SKILL.md` (e.g. an OpenClaw agent or Claude Code) will:
+> "Install this skill and set it up for my account."
 
-1. Run `python run.py start --dry-run --ad-type both --days 30`
-   — computes recommendations and writes `output/recs-<date>.json` without opening a browser or applying anything
-2. Read the JSON output and format a summary of proposed changes
-3. Present the diff to you in chat: which campaigns, which placements, current vs. recommended modifiers
-4. Wait for your approval — either "apply all", "apply safe ones only", or "open browser review"
-5. If approved directly: call `python run.py start` (without `--dry-run`) to launch the browser for your final click
+The agent will:
+1. Clone the repo and install dependencies
+2. Walk you through getting Amazon Ads API credentials (with links)
+3. Run the OAuth flow — give you a URL, you click it, done
+4. Discover your profile IDs and write `config/account.yaml` with your inputs
+5. Run a dry-run to verify everything works
+6. Hand you a working tool, configured for your account
 
-**Why the apply step stays with you:** agents can misread context, data can be stale, and placement modifier changes affect real spend immediately. The browser review is a one-minute safeguard that keeps you in control.
+No terminal experience required. The agent handles every step and asks only when it needs something from you (credentials, ACOS targets, brand name).
 
-### Agentic workflow example (OpenClaw / Claude Code)
+---
 
-If you have an OpenClaw agent configured with this skill:
+### Ongoing agentic workflow
+
+Once set up, your agent can run the optimizer on a schedule or on demand and surface the diff to you in chat — so you never have to open a terminal:
 
 ```
-User: "Run placement optimizer for the last 30 days, SP only, dry run first"
+User: "Run placement optimizer, last 30 days, SP only"
 
 Agent: runs `python run.py start --days 30 --ad-type sp --dry-run`
        reads output/recs-*.json
-       responds: "14 adjustments recommended across 6 campaigns.
-                  Top of Search: avg −4pp (currently over ACOS target)
+       responds: "14 changes recommended across 6 campaigns.
+                  Top of Search: avg −4pp (over ACOS target)
                   Product Page:  avg +6pp (under target, room to push)
-                  3 flagged rows (modifier ≥ 300%) — recommend reviewing manually.
-                  Ready to open browser for final review?"
+                  3 flagged rows (modifier ≥ 300%) — manual review suggested.
+                  Open browser for final review?"
 
 User: "yes"
 
-Agent: runs `python run.py start --days 30 --ad-type sp --no-browser`
-       tells user: "Review ready at http://localhost:8501"
+Agent: launches review UI at http://localhost:8501
 ```
 
-### Configuring for agent use
+**The apply step stays with you.** Agents run the math and surface the diff; you review in browser and click Apply. Placement modifier changes affect real spend immediately — the one-minute review is the safeguard.
 
-The `SKILL.md` file in this repo is written for AI agent consumption — it describes the CLI, the config format, the output schema, and the expected workflow. Drop the skill folder into your agent's workspace and point it at `SKILL.md`.
+---
 
-For OpenClaw specifically: install the skill via `npx clawhub@latest install amazon-placement-optimizer` (once published), then direct your agent to run `python run.py` from the skill directory.
+### Agent setup (for developers/power users)
+
+The `SKILL.md` in this repo is written for AI agent consumption — it describes the CLI, config format, output schema, and expected workflow in agent-readable structured form.
+
+**To configure manually:**
+- Drop the skill folder into your agent's workspace directory
+- Point the agent at `SKILL.md`
+- The agent reads it and knows how to run every command
+
+**OpenClaw:** `npx clawhub@latest install amazon-placement-optimizer` (once published to ClaWHub), then tell your agent to use it.
 
 ---
 
