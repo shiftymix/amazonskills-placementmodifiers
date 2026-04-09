@@ -61,6 +61,10 @@ Say things like:
 
 ## Run Flow
 
+### Step 0 — Load account config
+
+Read `config/account.yaml` before asking the user for any parameters. This file contains ACOS targets, dampening, min_clicks, and all other account-specific settings. Only prompt the user for values that are genuinely missing from the config.
+
 ### Step 1 — Confirm parameters
 
 Before touching anything, confirm:

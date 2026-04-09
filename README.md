@@ -52,7 +52,7 @@ Agent: runs `python run.py start --days 30 --ad-type sp --dry-run`
        responds: "14 changes recommended across 6 campaigns.
                   Top of Search: avg −4pp (over ACOS target)
                   Product Page:  avg +6pp (under target, room to push)
-                  3 flagged rows (modifier ≥ 300%) — manual review suggested.
+                  3 flagged rows (modifier ≥ 50%) — manual review suggested.
                   Open browser for final review?"
 
 User: "yes"
@@ -183,6 +183,10 @@ Browser opens at `http://localhost:8501` after each run.
 | `python run.py auth` | OAuth flow — saves refresh token to `.env` |
 | `python run.py list-profiles` | List accessible profile IDs and names |
 | `python run.py start` | Run the optimizer, open review UI |
+| `python run.py serve` | Start the local review server at http://localhost:8501 |
+| `python run.py review` | Print the diff table to terminal without opening browser |
+| `python run.py apply` | Push approved changes to Amazon Ads API |
+| `python run.py apply --include-flagged` | Also apply flagged high-modifier rows |
 | `python run.py status` | Check if a run is in progress |
 
 ### `start` options
@@ -195,6 +199,8 @@ Browser opens at `http://localhost:8501` after each run.
 | `--dry-run` | off | Compute only — no browser, no apply |
 | `--no-browser` | off | Don't auto-open browser |
 | `--show-skipped` | off | Show low-data rows in terminal |
+
+> **Diff file lifecycle:** `run.py start` generates `output/diff.json` when the report is ready. `run.py apply` (or clicking Apply in the browser UI) consumes this file — it is archived to `output/diff.applied.json` after a successful apply. To re-run, call `run.py start` again to generate a fresh diff.
 
 ---
 
@@ -217,7 +223,7 @@ min_clicks:  10        # skip placements with fewer clicks
 dampening:   0.5       # 0.5 = move 50% toward target per run
 brand_dampening: 0.65
 
-flag_threshold_pct: 300  # highlight rows where modifier ≥ 300%
+flag_threshold_pct: 50   # highlight rows where modifier ≥ 50%
 
 brand_patterns:           # campaign name substrings = branded
   - "brand"
@@ -230,19 +236,27 @@ brand_patterns:           # campaign name substrings = branded
 ## Overrides file (`output/overrides.json`)
 
 ```json
-{
-  "CAMPAIGN_ID|TOP_OF_SEARCH": {
+[
+  {
+    "campaign_id": "CAMPAIGN_ID",
+    "campaign_name": "My Campaign — Top of Search",
+    "placement": "TOP_OF_SEARCH",
     "modifier_pct": 45,
     "skip": false,
-    "note": "keep low — strong competitor here"
+    "reason": "keep low — strong competitor here"
   },
-  "CAMPAIGN_ID|PRODUCT_PAGE": {
+  {
+    "campaign_id": "CAMPAIGN_ID",
+    "campaign_name": "My Campaign — Product Page",
+    "placement": "PRODUCT_PAGE",
     "modifier_pct": 0,
     "skip": true,
-    "note": "exclude until Q3 review"
+    "reason": "exclude until Q3 review"
   }
-}
+]
 ```
+
+Overrides are written by the browser UI when you click Save Edits. They persist between runs — your manual values and skips are pre-loaded the next time you open the review UI.
 
 Auto-loaded every time the review UI opens. Updated when you click Save Edits. Safe to commit to version control — it's your strategy record for the account.
 
@@ -256,8 +270,8 @@ No. Terminal + text editor. Setup is one-time; after that it's `python run.py st
 **Q: Will it apply changes automatically?**  
 No. The browser review step is mandatory. `--dry-run` is available for zero-risk exploration.
 
-**Q: What's a flagged row?**  
-Any modifier above `flag_threshold_pct` (default 300%) gets a ⚠ and amber highlight. High modifiers spike spend fast — these are surfaced for intentional review, not auto-excluded.
+**Q: What's a flagged row?**
+Any modifier above `flag_threshold_pct` (default 50%) gets a ⚠ and amber highlight. High modifiers spike spend fast — these are surfaced for intentional review, not auto-excluded.
 
 **Q: How often should I run it?**  
 Weekly for most accounts. Daily for high-spend. Dampening prevents overcorrection between runs.
